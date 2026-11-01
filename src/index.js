@@ -1,3 +1,4 @@
+import { createResourcesHandler } from "./resources.js";
 import { createTimeHandler } from "./time.js";
 
 const port = Number(Bun.env.PORT ?? 3000);
@@ -8,6 +9,7 @@ const server = Bun.serve({
     "/": () => Response.json({ message: "Hello via Bun!" }),
     "/health": () => Response.json({ status: "ok" }),
     "/time": createTimeHandler(),
+    "/resources": createResourcesHandler(),
   },
   fetch() {
     return new Response("Not Found", { status: 404 });
