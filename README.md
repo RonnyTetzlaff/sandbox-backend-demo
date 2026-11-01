@@ -29,11 +29,12 @@ Der Server läuft standardmäßig auf http://localhost:3000 (`PORT` in `.env` an
 
 ## Endpunkte
 
-| Methode | Pfad      | Antwort                                                      |
-| ------- | --------- | ------------------------------------------------------------ |
-| `GET`   | `/`       | `{ "message": "Hello via Bun!" }`                            |
-| `GET`   | `/health` | `{ "status": "ok" }`                                         |
-| `GET`   | `/time`   | Aktuelle UTC-Zeit, per NTP von einem Zeitserver ermittelt    |
+| Methode | Pfad         | Antwort                                                   |
+| ------- | ------------ | --------------------------------------------------------- |
+| `GET`   | `/`          | `{ "message": "Hello via Bun!" }`                         |
+| `GET`   | `/health`    | `{ "status": "ok" }`                                      |
+| `GET`   | `/time`      | Aktuelle UTC-Zeit, per NTP von einem Zeitserver ermittelt |
+| `GET`   | `/resources` | Ressourcenverbrauch von Bun-Prozess und System            |
 
 ### `GET /time`
 
@@ -60,6 +61,66 @@ Offset abgeleitet. Ist kein Zeitserver erreichbar, antwortet der Endpunkt mit
 `503` und `{ "error": "ntp_unavailable", "detail": "..." }` statt mit einer
 möglicherweise falschen Zeit.
 
+### `GET /resources`
+
+Momentaufnahme des Ressourcenverbrauchs, ermittelt mit Bordmitteln
+(`process`, `node:os`, `Bun`):
+
+```json
+{
+  "timestamp": "2026-11-01T16:54:33.369Z",
+  "process": {
+    "pid": 2604,
+    "uptimeSec": 2.234,
+    "runtime": { "bun": "1.4.4" },
+    "memory": {
+      "rssBytes": 19017728,
+      "heapUsedBytes": 238315,
+      "heapTotalBytes": 665600,
+      "externalBytes": 40315,
+      "arrayBuffersBytes": 0
+    },
+    "cpu": {
+      "userMs": 12.499,
+      "systemMs": 18.749,
+      "percentSinceStart": 0.3,
+      "percentRecent": 0.1,
+      "recentWindowMs": 1225
+    }
+  },
+  "system": {
+    "platform": "linux",
+    "cpuCount": 4,
+    "uptimeSec": 2561,
+    "loadAverage": { "1m": 0.09, "5m": 0.03, "15m": 0.03 },
+    "memory": {
+      "totalBytes": 4125417472,
+      "freeBytes": 2987589632,
+      "usedBytes": 1137827840,
+      "usedPercent": 27.6
+    }
+  }
+}
+```
+
+- **Einheiten:** Speicher in Bytes, CPU-Zeit in Millisekunden, Laufzeiten in
+  Sekunden. Prozentwerte sind der Anteil an der Gesamt-CPU des Systems
+  (0–100, normiert auf `cpuCount`).
+- **`percentSinceStart`:** durchschnittliche Auslastung seit Prozessstart.
+- **`percentRecent`:** Auslastung seit dem vorletzten gezählten Abruf, über ein
+  Fenster von mindestens einer Sekunde; die Länge steht in `recentWindowMs`.
+  Beim ersten Abruf sind beide Felder `null`. Folgt ein Abruf in kürzerem
+  Abstand, wird der letzte Wert wiederholt.
+- **Speicherwerte des Prozesses** kommen aus JavaScriptCore und sind nicht mit
+  Node.js vergleichbar.
+- **Systemwerte** beschreiben Host bzw. VM, nicht die Limits eines Containers.
+  Unter Windows ist `loadAverage` immer 0.
+- Antwort mit `Cache-Control: no-store`; ist eine Datenquelle nicht lesbar,
+  antwortet der Endpunkt mit `500` und
+  `{ "error": "resources_unavailable", "detail": "..." }`.
+- Der Endpunkt ist nicht geschützt und gibt u. a. PID, Laufzeit und
+  Bun-Version preis.
+
 ## Umgebungsvariablen
 
 | Variable          | Default         | Beschreibung                                                        |
@@ -73,12 +134,14 @@ möglicherweise falschen Zeit.
 
 ```
 src/
-  index.js       Einstiegspunkt (Bun.serve)
-  index.test.js  Beispieltest (bun:test)
-  ntp.js         SNTP-Client (Paketaufbau, Parsing, UDP-Abfrage)
-  ntp.test.js    Tests für den SNTP-Client
-  time.js        Handler für GET /time samt Offset-Cache
-  time.test.js   Tests für Handler und Cache
-jsconfig.json    Editor-Autovervollständigung für Bun-APIs
-.env.example     Vorlage für Umgebungsvariablen
+  index.js           Einstiegspunkt (Bun.serve)
+  index.test.js      Beispieltest (bun:test)
+  ntp.js             SNTP-Client (Paketaufbau, Parsing, UDP-Abfrage)
+  ntp.test.js        Tests für den SNTP-Client
+  time.js            Handler für GET /time samt Offset-Cache
+  time.test.js       Tests für Handler und Cache
+  resources.js       Handler für GET /resources (Prozess- und Systemwerte)
+  resources.test.js  Tests für den Ressourcen-Handler
+jsconfig.json        Editor-Autovervollständigung für Bun-APIs
+.env.example         Vorlage für Umgebungsvariablen
 ```
